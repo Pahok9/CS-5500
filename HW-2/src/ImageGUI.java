@@ -160,22 +160,28 @@ public class ImageGUI {
         applyBitPlanesButton.addActionListener(e -> {
             BufferedImage originalImage = (BufferedImage) ((ImageIcon) originalImageLabel.getIcon()).getImage();
 
-            // Extract the bit planes that are selected
-            ArrayList<BufferedImage> selectedBitImages = new ArrayList<>();
-            StringBuilder appliedBitPlanes = new StringBuilder("Selected Bit Planes: "); // Added for tracking
+            // List to store the selected bit positions
+            ArrayList<Integer> selectedBits = new ArrayList<>();
+            StringBuilder appliedBitPlanes = new StringBuilder("Selected Bit Planes: "); // For tracking
+
             for (int i = 0; i < bitPlaneCheckboxes.length; i++) {
                 if (bitPlaneCheckboxes[i].isSelected()) {
-                    BufferedImage bitImage = Filters.bitPlaneSlicing(originalImage, i + 1); // Using the Filters class function
-                    selectedBitImages.add(bitImage);
-                    appliedBitPlanes.append(i + 1).append(" "); // Appending the bit number to the tracking string
+                    selectedBits.add(i + 1); // Add the bit position to the list
+                    appliedBitPlanes.append(i + 1).append(" ");
                 }
             }
 
-            System.out.println(appliedBitPlanes.toString()); // Printing out the selected bit planes
+            System.out.println(appliedBitPlanes.toString());
 
-            BufferedImage combinedImage = Filters.combineBitPlanes(selectedBitImages.toArray(new BufferedImage[0]));
-            processedImageLabel.setIcon(new ImageIcon(combinedImage));
+            if (!selectedBits.isEmpty()) {
+                BufferedImage combinedImage = Filters.combineBitPlanes(originalImage, selectedBits.stream().mapToInt(Integer::intValue).toArray());
+                processedImageLabel.setIcon(new ImageIcon(combinedImage));
+            } else {
+                // Handle the case where no checkboxes are selected
+                System.out.println("No bit planes selected.");
+            }
         });
+
         bitPlanePanel.add(applyBitPlanesButton);
 
         return bitPlanePanel;
@@ -196,8 +202,11 @@ public class ImageGUI {
             case "Local Histogram Equalization":
                 processedImage = Filters.localHistogramEqualization(originalImage, currentMaskSize);
                 break;
-            case "Gaussian Blur":
-                processedImage = Filters.gaussianBlur(originalImage, currentMaskSize, 5);
+            case "Smoothing Box Filter":
+                processedImage = Filters.smoothingBoxFilter(originalImage, currentMaskSize);
+                break;
+            case "Smoothing Average Weighted Filter":
+                processedImage = Filters.smoothingWeightedAverageFilter(originalImage);
                 break;
             case "Laplacian Sharpening":
                 processedImage = Filters.laplacianSharpeningFilter(originalImage);

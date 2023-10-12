@@ -4,14 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class Filters {
-    public static BufferedImage toGrayscale(BufferedImage input) {
-        BufferedImage grayscaleImage = new BufferedImage(input.getWidth(), input.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-        Graphics g = grayscaleImage.getGraphics();
-        g.drawImage(input, 0, 0, null);
-        g.dispose();
-        return grayscaleImage;
-    }
-
     public static BufferedImage globalHistogramEqualization(BufferedImage inputImage) {
         int width = inputImage.getWidth();
         int height = inputImage.getHeight();
@@ -97,7 +89,6 @@ public class Filters {
     }
 
     public static BufferedImage bitPlaneSlicing(BufferedImage inputImage, int bit) {
-        toGrayscale(inputImage);
         int width = inputImage.getWidth();
         int height = inputImage.getHeight();
         BufferedImage output = new BufferedImage(width, height, inputImage.getType());
@@ -121,31 +112,43 @@ public class Filters {
         return output;
     }
 
-    public static BufferedImage combineBitPlanes(BufferedImage... bitImages) {
-        if (bitImages.length == 0) {
-            return null;
-        }
-
-        int width = bitImages[0].getWidth();
-        int height = bitImages[0].getHeight();
-        BufferedImage combinedImages = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+    public static BufferedImage combineBitPlanes(BufferedImage inputImage, int[] bits) {
+        int width = inputImage.getWidth();
+        int height = inputImage.getHeight();
+        BufferedImage outputImage = new BufferedImage(width, height, inputImage.getType());
 
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int combinedPixelValue = 0;
-                for (BufferedImage image : bitImages) {
-                    int pixelValue = image.getRGB(x, y) & 0xFF;
-                    if (pixelValue == 255) {
-                        combinedPixelValue = 255;
-                        break;
-                    }
+                int pixelValue = inputImage.getRGB(x, y) & 0xFF;
+                String binaryPixelValue = Integer.toBinaryString(pixelValue);
+
+                // Ensure the binary string has 8 bits
+                while (binaryPixelValue.length() < 8) {
+                    binaryPixelValue = "0" + binaryPixelValue;
                 }
-                combinedImages.setRGB(x, y, new Color(combinedPixelValue, combinedPixelValue, combinedPixelValue).getRGB());
+
+                int combinedPixelValue = 0;
+                for (int bit : bits) {
+                    int bitPosition = 7 - (bit - 1);
+                    int bitValue;
+
+                    if (binaryPixelValue.charAt(bitPosition) == '1') {
+                        bitValue = 1;
+                    } else {
+                        bitValue = 0;
+                    }
+
+                    combinedPixelValue += (int) (bitValue * Math.pow(2, bit - 1));
+                }
+
+                Color combinedColor = new Color(combinedPixelValue, combinedPixelValue, combinedPixelValue);
+                outputImage.setRGB(x, y, combinedColor.getRGB());
             }
         }
 
-        return combinedImages;
+        return outputImage;
     }
+
 
     public static BufferedImage smoothingBoxFilter(BufferedImage inputImage, int maskSize) {
         int width = inputImage.getWidth();
@@ -173,7 +176,7 @@ public class Filters {
         return outputImg;
     }
 
-    private static BufferedImage smoothingWeightedAverageFilter(BufferedImage inputImage) {
+    public static BufferedImage smoothingWeightedAverageFilter(BufferedImage inputImage) {
         int width = inputImage.getWidth();
         int height = inputImage.getHeight();
         BufferedImage outputImg = new BufferedImage(width, height, inputImage.getType());
@@ -186,11 +189,13 @@ public class Filters {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int sumPixelValue = 0;
-                int count = 0;
+//                int count = 0;
                 for (int yj = -1; yj <= 1; yj++) {
                     for (int xi = -1; xi <= 1; xi++) {
-                        int pixelValue = inputImage.getRGB(x + xi, y + yj) & 0xFF;
-                        sumPixelValue += pixelValue * kernel[yj + 1][xi + 1];
+                        if ((x + xi >= 0 && x + xi < width) && (y + yj >= 0 && y + yj < height)) {
+                            int pixelValue = inputImage.getRGB(x + xi, y + yj) & 0xFF;
+                            sumPixelValue += pixelValue * kernel[yj + 1][xi + 1];
+                        }
                     }
                 }
                 int newPixelValue = sumPixelValue / 16; // 16 due to the sum of the kernel pixel values
@@ -199,56 +204,6 @@ public class Filters {
         }
         return outputImg;
     }
-
-    public static BufferedImage gaussianBlur(BufferedImage inputImage, int maskSize, double sigma) {
-        int width = inputImage.getWidth();
-        int height = inputImage.getHeight();
-        BufferedImage result = new BufferedImage(width, height, inputImage.getType());
-
-        double[][] kernel = generateGaussianKernel(maskSize, sigma);
-        double kernelSum = 0;
-
-        for (int i = 0; i < maskSize; i++) {
-            for (int j = 0; j < maskSize; j++) {
-                kernelSum += kernel[i][j];
-            }
-        }
-
-        int offset = maskSize / 2;
-
-        for (int x = offset; x < width - offset; x++) {
-            for (int y = offset; y < height - offset; y++) {
-                double sumPixelValue = 0.0;
-
-                for (int i = -offset; i <= offset; i++) {
-                    for (int j = -offset; j <= offset; j++) {
-                        int pixelValue = inputImage.getRGB(x + i, y + j) & 0xFF;
-                        sumPixelValue += pixelValue * kernel[i + offset][j + offset];
-                    }
-                }
-
-                int newPixelValue = (int)Math.round(sumPixelValue / kernelSum);
-                result.setRGB(x, y, new Color(newPixelValue, newPixelValue, newPixelValue).getRGB());
-            }
-        }
-
-        return result;
-    }
-
-    public static double[][] generateGaussianKernel(int size, double sigma) {
-        double[][] kernel = new double[size][size];
-        int offset = size / 2;
-        double sigmaSquare = sigma * sigma;
-
-        for (int x = -offset; x <= offset; x++) {
-            for (int y = -offset; y <= offset; y++) {
-                kernel[x + offset][y + offset] = (1.0 / (2.0 * Math.PI * sigmaSquare)) * Math.exp(-(x * x + y * y) / (2 * sigmaSquare));
-            }
-        }
-
-        return kernel;
-    }
-
 
     public static BufferedImage laplacianSharpeningFilter(BufferedImage inputImage) {
         int width = inputImage.getWidth();
@@ -315,10 +270,10 @@ public class Filters {
 
         BufferedImage output = new BufferedImage(width, height, inputImage.getType());
 
-        // 1. Blur the original image using a simple average filter
-        BufferedImage blurredImage = gaussianBlur(inputImage, 31, 5);
+        // Blur the original image using a box filter
+        BufferedImage blurredImage = smoothingBoxFilter(inputImage, 3);
 
-        // 2. Compute the mask: original - blurred
+        // Compute the mask: original - blurred
         BufferedImage maskImage = new BufferedImage(width, height, inputImage.getType());
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
@@ -330,14 +285,13 @@ public class Filters {
             }
         }
 
-        // 3. Add the weighted mask to the original image
+        // Add the weighted mask to the original image
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < height; y++) {
                 int originalPixel = inputImage.getRGB(x, y) & 0xFF;
                 int maskPixel = maskImage.getRGB(x, y) & 0xFF;
                 int highBoostPixel = originalPixel + Math.round(k * maskPixel);
 
-                // Clamp to the range [0, 255]
                 highBoostPixel = Math.max(0, Math.min(255, highBoostPixel));
 
                 output.setRGB(x, y, new Color(highBoostPixel, highBoostPixel, highBoostPixel).getRGB());
