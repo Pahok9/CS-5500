@@ -74,13 +74,10 @@ public class Main {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setLayout(new FlowLayout());
 
-        // Add the original image
         frame.add(new JLabel(new ImageIcon(originalImage)));
 
-        // Add the processed image
         frame.add(new JLabel(new ImageIcon(processedImage)));
 
-        // Pack and display the frame
         frame.pack();
         frame.setVisible(true);
     }
